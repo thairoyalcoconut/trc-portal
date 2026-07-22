@@ -2,6 +2,12 @@ import Link from "next/link";
 import { signOut } from "@/app/login/actions";
 import type { CurrentProfile } from "@/lib/profile";
 
+// Department-specific modules. Add more department -> page mappings here
+// as new department pages get built (e.g. Production, Warehouse & Inventory).
+const DEPARTMENT_MODULES: Record<string, { href: string; label: string }[]> = {
+  Marketing: [{ href: "/sales", label: "Sales Order" }],
+};
+
 export default function Nav({ profile }: { profile: CurrentProfile }) {
   const links = [
     { href: "/dashboard", label: "Dashboard" },
@@ -12,16 +18,43 @@ export default function Nav({ profile }: { profile: CurrentProfile }) {
     links.push({ href: "/admin", label: "Admin" });
   }
 
+  // Admins see every department's modules; everyone else only sees
+  // their own department's modules (if that department has any).
+  const departmentGroups: [string, { href: string; label: string }[]][] =
+    profile.role === "admin"
+      ? Object.entries(DEPARTMENT_MODULES)
+      : profile.department_name && DEPARTMENT_MODULES[profile.department_name]
+      ? [[profile.department_name, DEPARTMENT_MODULES[profile.department_name]]]
+      : [];
+
   return (
     <header className="border-b border-gray-200 bg-white">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
         <div className="flex items-center gap-6">
           <span className="text-lg font-semibold text-brand-700">TRC Portal</span>
-          <nav className="flex gap-4 text-sm">
+          <nav className="flex items-center gap-4 text-sm">
             {links.map((l) => (
               <Link key={l.href} href={l.href} className="text-gray-600 hover:text-brand-700">
                 {l.label}
               </Link>
+            ))}
+            {departmentGroups.map(([deptName, modules]) => (
+              <details key={deptName} className="relative">
+                <summary className="cursor-pointer list-none text-gray-600 hover:text-brand-700">
+                  {deptName} <span className="text-xs text-gray-400">▾</span>
+                </summary>
+                <div className="absolute left-0 top-full z-10 mt-2 min-w-[160px] rounded-md border border-gray-200 bg-white py-1 shadow-md">
+                  {modules.map((m) => (
+                    <Link
+                      key={m.href}
+                      href={m.href}
+                      className="block px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                    >
+                      {m.label}
+                    </Link>
+                  ))}
+                </div>
+              </details>
             ))}
           </nav>
         </div>
