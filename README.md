@@ -91,5 +91,3 @@ maintain.
   swap the login form for `supabase.auth.signInWithOAuth(...)`.
 - **File uploads:** Supabase Storage buckets can be scoped with the
   same department-based RLS pattern used here.
-
-<!-- redeploy trigger: repo made public 2026-07-22T14:04:59Z -->

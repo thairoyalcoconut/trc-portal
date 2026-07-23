@@ -16,7 +16,6 @@ type RawItem = {
 export async function createSaleOrder(formData: FormData) {
   const profile = await getCurrentProfile();
   if (!profile) throw new Error("Not signed in");
-  if (!profile.department_id) throw new Error("No department assigned");
 
   const field = (name: string) => {
     const v = String(formData.get(name) || "").trim();
@@ -41,10 +40,20 @@ export async function createSaleOrder(formData: FormData) {
     }));
 
   const supabase = createClient();
+
+  // Sales Order is a Marketing-department module — always file it under
+  // Marketing regardless of the submitting user's own department (this
+  // lets admins, who often have no department assigned, use it too).
+  const { data: marketingDept } = await supabase
+    .from("departments")
+    .select("id")
+    .eq("name", "Marketing")
+    .single();
+
   const { data: order, error } = await supabase
     .from("sale_orders")
     .insert({
-      department_id: profile.department_id,
+      department_id: marketingDept?.id ?? profile.department_id,
       issue_date: field("issue_date") || new Date().toISOString().slice(0, 10),
       customer: field("customer"),
       brand: field("brand"),
