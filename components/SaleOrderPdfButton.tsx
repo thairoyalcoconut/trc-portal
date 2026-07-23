@@ -44,16 +44,26 @@ export default function SaleOrderPdfButton({
   async function handleExport() {
     const { jsPDF } = await import("jspdf");
     const autoTable = (await import("jspdf-autotable")).default;
+    const { default: sarabunRegular } = await import("@/lib/pdf-fonts/sarabun-regular");
+    const { default: sarabunBold } = await import("@/lib/pdf-fonts/sarabun-bold");
 
     const doc = new jsPDF({ unit: "pt", format: "a4" });
+
+    // Register a Thai-capable font — jsPDF's built-in fonts (helvetica etc.)
+    // only cover Latin characters, so Thai text renders as garbage without this.
+    doc.addFileToVFS("Sarabun-Regular.ttf", sarabunRegular);
+    doc.addFont("Sarabun-Regular.ttf", "Sarabun", "normal");
+    doc.addFileToVFS("Sarabun-Bold.ttf", sarabunBold);
+    doc.addFont("Sarabun-Bold.ttf", "Sarabun", "bold");
+
     const marginX = 40;
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    doc.setFont("helvetica", "bold");
+    doc.setFont("Sarabun", "bold");
     doc.setFontSize(14);
     doc.text("Thai Royal Coconut Co., Ltd. (Head Office)", marginX, 44);
 
-    doc.setFont("helvetica", "normal");
+    doc.setFont("Sarabun", "normal");
     doc.setFontSize(9);
     doc.setTextColor(90);
     doc.text(
@@ -63,13 +73,13 @@ export default function SaleOrderPdfButton({
     );
 
     doc.setTextColor(0);
-    doc.setFont("helvetica", "normal");
+    doc.setFont("Sarabun", "normal");
     doc.setFontSize(11);
     doc.text("Sales Order", pageWidth - marginX, 40, { align: "right" });
-    doc.setFont("helvetica", "bold");
+    doc.setFont("Sarabun", "bold");
     doc.setFontSize(14);
     doc.text(order.order_no, pageWidth - marginX, 56, { align: "right" });
-    doc.setFont("helvetica", "normal");
+    doc.setFont("Sarabun", "normal");
     doc.setFontSize(9);
     doc.setTextColor(90);
     doc.text(`Issue date: ${toDMY(order.issue_date)}`, pageWidth - marginX, 68, { align: "right" });
@@ -82,9 +92,9 @@ export default function SaleOrderPdfButton({
     let y = 96;
 
     const kv = (label: string, value: string | null, x: number) => {
-      doc.setFont("helvetica", "bold");
+      doc.setFont("Sarabun", "bold");
       doc.text(label, x, y);
-      doc.setFont("helvetica", "normal");
+      doc.setFont("Sarabun", "normal");
       doc.text(value || "-", x + 90, y);
     };
 
@@ -111,9 +121,9 @@ export default function SaleOrderPdfButton({
         it.product_spec_no || "-",
       ]),
       foot: [["", "", "", "Total", money(orderTotal), ""]],
-      styles: { fontSize: 9, cellPadding: 5 },
-      headStyles: { fillColor: [74, 124, 47], textColor: 255 },
-      footStyles: { fillColor: [240, 240, 240], textColor: 20, fontStyle: "bold" },
+      styles: { font: "Sarabun", fontSize: 9, cellPadding: 5 },
+      headStyles: { font: "Sarabun", fillColor: [74, 124, 47], textColor: 255 },
+      footStyles: { font: "Sarabun", fillColor: [240, 240, 240], textColor: 20, fontStyle: "bold" },
       columnStyles: {
         2: { halign: "right" },
         3: { halign: "right" },
@@ -125,10 +135,10 @@ export default function SaleOrderPdfButton({
     y = (doc.lastAutoTable?.finalY ?? y) + 20;
 
     const block = (label: string, value: string | null) => {
-      doc.setFont("helvetica", "bold");
+      doc.setFont("Sarabun", "bold");
       doc.setFontSize(9);
       doc.text(label.toUpperCase(), marginX, y);
-      doc.setFont("helvetica", "normal");
+      doc.setFont("Sarabun", "normal");
       doc.setFontSize(10);
       const lines = doc.splitTextToSize(value || "-", pageWidth - marginX * 2);
       doc.text(lines, marginX, y + 13);

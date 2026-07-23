@@ -82,6 +82,73 @@ export async function createSaleOrder(formData: FormData) {
   redirect(`/sales/${order.id}`);
 }
 
+export async function updateSaleOrder(formData: FormData) {
+  const profile = await getCurrentProfile();
+  if (!profile) throw new Error("Not signed in");
+
+  const id = String(formData.get("id") || "");
+  if (!id) throw new Error("Missing order id");
+
+  const field = (name: string) => {
+    const v = String(formData.get(name) || "").trim();
+    return v.length > 0 ? v : null;
+  };
+
+  let items: RawItem[] = [];
+  try {
+    items = JSON.parse(String(formData.get("items_json") || "[]"));
+  } catch {
+    items = [];
+  }
+  const cleanItems = items
+    .filter((it) => (it.product_name || "").toString().trim().length > 0)
+    .map((it, i) => ({
+      position: i,
+      product_name: (it.product_name || "").toString().trim(),
+      packing: (it.packing || "").toString().trim() || null,
+      quantity: Number(it.quantity) || 0,
+      price_per_unit: Number(it.price_per_unit) || 0,
+      product_spec_no: (it.product_spec_no || "").toString().trim() || null,
+    }));
+
+  const supabase = createClient();
+
+  const { error } = await supabase
+    .from("sale_orders")
+    .update({
+      issue_date: field("issue_date") || new Date().toISOString().slice(0, 10),
+      customer: field("customer"),
+      brand: field("brand"),
+      shipment_date: field("shipment_date"),
+      payment_term: field("payment_term"),
+      sales_representative: field("sales_representative"),
+      product_description: field("product_description"),
+      packaging_detail: field("packaging_detail"),
+      remark: field("remark"),
+      compiled_by: field("compiled_by") || profile.full_name,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) throw new Error(error.message);
+
+  // Replace all line items with the edited set (simplest reliable
+  // approach for a small internal form — delete then re-insert).
+  const { error: deleteError } = await supabase.from("sale_order_items").delete().eq("sale_order_id", id);
+  if (deleteError) throw new Error(deleteError.message);
+
+  if (cleanItems.length > 0) {
+    const { error: itemsError } = await supabase
+      .from("sale_order_items")
+      .insert(cleanItems.map((it) => ({ ...it, sale_order_id: id })));
+    if (itemsError) throw new Error(itemsError.message);
+  }
+
+  revalidatePath("/sales");
+  revalidatePath(`/sales/${id}`);
+  redirect(`/sales/${id}`);
+}
+
 export async function deleteSaleOrder(formData: FormData) {
   const id = String(formData.get("id") || "");
   const supabase = createClient();
