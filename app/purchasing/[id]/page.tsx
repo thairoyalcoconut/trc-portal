@@ -149,4 +149,3 @@ function formatDate(value: string | null) {
   </div>
 );
   }
-</div>
