@@ -204,4 +204,3 @@ return (
   </details>
   );
 }
-</details>
