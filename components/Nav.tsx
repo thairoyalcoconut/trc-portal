@@ -6,6 +6,7 @@ import type { CurrentProfile } from "@/lib/profile";
 // as new department pages get built (e.g. Production, Warehouse & Inventory).
 const DEPARTMENT_MODULES: Record<string, { href: string; label: string }[]> = {
   Marketing: [{ href: "/sales", label: "Sales Order" }],
+  Purchasing: [{ href: "/purchasing", label: "PR" }],
 };
 
 export default function Nav({ profile }: { profile: CurrentProfile }) {
