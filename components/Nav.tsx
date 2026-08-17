@@ -19,14 +19,15 @@ export default function Nav({ profile }: { profile: CurrentProfile }) {
     links.push({ href: "/admin", label: "Admin" });
   }
 
-  // Admins see every department's modules; everyone else only sees
-  // their own department's modules (if that department has any).
+  // Admins see every department's modules; everyone else sees the
+  // modules for every department they belong to (a user can be in
+  // more than one).
   const departmentGroups: [string, { href: string; label: string }[]][] =
     profile.role === "admin"
       ? Object.entries(DEPARTMENT_MODULES)
-      : profile.department_name && DEPARTMENT_MODULES[profile.department_name]
-      ? [[profile.department_name, DEPARTMENT_MODULES[profile.department_name]]]
-      : [];
+      : profile.department_names
+          .filter((name) => DEPARTMENT_MODULES[name])
+          .map((name) => [name, DEPARTMENT_MODULES[name]] as [string, { href: string; label: string }[]]);
 
   return (
     <header className="border-b border-gray-200 bg-white">
@@ -65,7 +66,10 @@ export default function Nav({ profile }: { profile: CurrentProfile }) {
               {profile.full_name || profile.email}
             </div>
             <div className="text-xs text-gray-400">
-              {profile.department_name ?? "No department assigned"} · {profile.role}
+              {profile.department_names.length > 0
+                ? profile.department_names.join(", ")
+                : "No department assigned"}{" "}
+              · {profile.role}
             </div>
           </div>
           <form action={signOut}>
