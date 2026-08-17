@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 
 export type CurrentProfile = {
@@ -19,37 +20,42 @@ export type CurrentProfile = {
 // one call. Every page that needs to know "who is this / what
 // department(s) / what role" should use this instead of querying
 // Supabase directly.
-export async function getCurrentProfile(): Promise<CurrentProfile | null> {
+//
+// Wrapped in React's cache() so multiple calls within the same
+// request (e.g. a layout and a page both needing the profile) only
+// hit Supabase once — this matters more now that the project runs on
+// Supabase's Free tier, where every extra round trip adds up.
+export const getCurrentProfile = cache(async (): Promise<CurrentProfile | null> => {
   const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-const [{ data: profile }, { data: memberships }] = await Promise.all([
-  supabase.from("profiles").select("id, full_name, role").eq("id", user.id).single(),
-  supabase
-  .from("profile_departments")
-  .select("departments ( id, name )")
-  .eq("profile_id", user.id),
+  const [{ data: profile }, { data: memberships }] = await Promise.all([
+    supabase.from("profiles").select("id, full_name, role").eq("id", user.id).single(),
+    supabase
+      .from("profile_departments")
+      .select("departments ( id, name )")
+      .eq("profile_id", user.id),
   ]);
 
-if (!profile) return null;
+  if (!profile) return null;
 
-const departments = (memberships ?? [])
-  .map((m: any) => m.departments)
-  .filter(Boolean)
-  .sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name));
+  const departments = (memberships ?? [])
+    .map((m: any) => m.departments)
+    .filter(Boolean)
+    .sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name));
 
-return {
-  id: user.id,
-  email: user.email,
-  full_name: profile.full_name,
-  role: profile.role,
-  departments,
-  department_ids: departments.map((d) => d.id),
-  department_names: departments.map((d) => d.name),
-  department_id: departments[0]?.id ?? null,
-  department_name: departments[0]?.name ?? null,
-};
-}
+  return {
+    id: user.id,
+    email: user.email,
+    full_name: profile.full_name,
+    role: profile.role,
+    departments,
+    department_ids: departments.map((d) => d.id),
+    department_names: departments.map((d) => d.name),
+    department_id: departments[0]?.id ?? null,
+    department_name: departments[0]?.name ?? null,
+  };
+});
