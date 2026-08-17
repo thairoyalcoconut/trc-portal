@@ -9,7 +9,7 @@ export default async function RequestsPage() {
   const profile = await getCurrentProfile();
   if (!profile) return null;
 
-  if (!profile.department_id && profile.role !== "admin") {
+  if (profile.departments.length === 0 && profile.role !== "admin") {
     return (
       <>
         <Nav profile={profile} />
@@ -19,10 +19,18 @@ export default async function RequestsPage() {
   }
 
   const supabase = createClient();
-  const { data: requests } = await supabase
-    .from("requests")
-    .select("id, type, status, details, created_at")
-    .order("created_at", { ascending: false });
+  const [{ data: requests }, { data: allDepartments }] = await Promise.all([
+    supabase
+      .from("requests")
+      .select("id, type, status, details, created_at")
+      .order("created_at", { ascending: false }),
+    profile.role === "admin"
+      ? supabase.from("departments").select("id, name").order("name")
+      : Promise.resolve({ data: null }),
+  ]);
+
+  // Which department(s) can this person file a new request under?
+  const eligibleDepartments = profile.role === "admin" ? allDepartments ?? [] : profile.departments;
 
   const canDecide = profile.role === "admin" || profile.role === "manager";
 
@@ -48,6 +56,25 @@ export default async function RequestsPage() {
           <button className="rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700">
             Submit
           </button>
+          {eligibleDepartments.length > 1 ? (
+            <select
+              name="department_id"
+              required
+              defaultValue=""
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm sm:col-span-2"
+            >
+              <option value="" disabled>
+                Department…
+              </option>
+              {eligibleDepartments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input type="hidden" name="department_id" value={eligibleDepartments[0]?.id ?? ""} />
+          )}
           <input
             name="details"
             placeholder="Details"
