@@ -8,7 +8,7 @@ export default async function RecordsPage() {
   const profile = await getCurrentProfile();
   if (!profile) return null;
 
-  if (!profile.department_id && profile.role !== "admin") {
+  if (profile.departments.length === 0 && profile.role !== "admin") {
     return (
       <>
         <Nav profile={profile} />
@@ -18,10 +18,19 @@ export default async function RecordsPage() {
   }
 
   const supabase = createClient();
-  const { data: records } = await supabase
-    .from("records")
-    .select("id, title, category, data, created_at")
-    .order("created_at", { ascending: false });
+  const [{ data: records }, { data: allDepartments }] = await Promise.all([
+    supabase
+      .from("records")
+      .select("id, title, category, data, created_at")
+      .order("created_at", { ascending: false }),
+    profile.role === "admin"
+      ? supabase.from("departments").select("id, name").order("name")
+      : Promise.resolve({ data: null }),
+  ]);
+
+  // Which department(s) can this person file a new record under?
+  // Admins choose from every department; everyone else from their own.
+  const eligibleDepartments = profile.role === "admin" ? allDepartments ?? [] : profile.departments;
 
   const canDelete = profile.role === "admin" || profile.role === "manager";
 
@@ -33,7 +42,7 @@ export default async function RecordsPage() {
         <p className="mt-1 text-sm text-gray-500">
           {profile.role === "admin"
             ? "All departments (admin view)"
-            : `${profile.department_name} only — other departments can't see this`}
+            : `${profile.department_names.join(", ")} only — other departments can't see this`}
         </p>
 
         <form
@@ -54,6 +63,25 @@ export default async function RecordsPage() {
           <button className="rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700">
             Add record
           </button>
+          {eligibleDepartments.length > 1 ? (
+            <select
+              name="department_id"
+              required
+              defaultValue=""
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm sm:col-span-2"
+            >
+              <option value="" disabled>
+                Department…
+              </option>
+              {eligibleDepartments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input type="hidden" name="department_id" value={eligibleDepartments[0]?.id ?? ""} />
+          )}
           <input
             name="notes"
             placeholder="Notes / details"
