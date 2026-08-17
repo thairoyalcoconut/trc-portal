@@ -7,14 +7,19 @@ import { getCurrentProfile } from "@/lib/profile";
 export async function submitRequest(formData: FormData) {
   const profile = await getCurrentProfile();
   if (!profile) throw new Error("Not signed in");
-  if (!profile.department_id) throw new Error("No department assigned");
+
+  const departmentId = String(formData.get("department_id") || "");
+  if (!departmentId) throw new Error("Choose a department");
+  if (profile.role !== "admin" && !profile.department_ids.includes(departmentId)) {
+    throw new Error("You can only submit requests for your own department(s)");
+  }
 
   const type = String(formData.get("type") || "");
   const details = String(formData.get("details") || "");
 
   const supabase = createClient();
   const { error } = await supabase.from("requests").insert({
-    department_id: profile.department_id,
+    department_id: departmentId,
     type,
     details,
     submitted_by: profile.id,
