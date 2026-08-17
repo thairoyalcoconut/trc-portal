@@ -9,7 +9,7 @@ export default async function DashboardPage() {
   const profile = await getCurrentProfile();
   if (!profile) return null;
 
-  if (!profile.department_id && profile.role !== "admin") {
+  if (profile.departments.length === 0 && profile.role !== "admin") {
     return (
       <>
         <Nav profile={profile} />
@@ -50,7 +50,9 @@ export default async function DashboardPage() {
       <Nav profile={profile} />
       <main className="mx-auto max-w-5xl px-4 py-8">
         <h1 className="text-xl font-semibold text-gray-800">
-          {profile.role === "admin" ? "All departments" : profile.department_name}{" "}
+          {profile.role === "admin"
+            ? "All departments"
+            : profile.department_names.join(", ")}{" "}
           dashboard
         </h1>
         <p className="mt-1 text-sm text-gray-500">
