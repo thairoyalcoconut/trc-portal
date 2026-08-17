@@ -14,6 +14,7 @@ export default function Nav({ profile }: { profile: CurrentProfile }) {
     { href: "/dashboard", label: "Dashboard" },
     { href: "/records", label: "Records" },
     { href: "/requests", label: "Requests" },
+    { href: "/memorandum", label: "Memorandum" },
   ];
   if (profile.role === "admin") {
     links.push({ href: "/admin", label: "Admin" });
@@ -36,7 +37,7 @@ export default function Nav({ profile }: { profile: CurrentProfile }) {
           <span className="text-lg font-semibold text-brand-700">TRC Portal</span>
           <nav className="flex items-center gap-4 text-sm">
             {links.map((l) => (
-              <Link key={l.href} href={l.href} className="text-gray-600 hover:text-brand-700">
+              <Link key={l.href} href={l.href} prefetch={false} className="text-gray-600 hover:text-brand-700">
                 {l.label}
               </Link>
             ))}
@@ -50,6 +51,7 @@ export default function Nav({ profile }: { profile: CurrentProfile }) {
                     <Link
                       key={m.href}
                       href={m.href}
+                      prefetch={false}
                       className="block px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
                     >
                       {m.label}
