@@ -7,7 +7,12 @@ import { getCurrentProfile } from "@/lib/profile";
 export async function createRecord(formData: FormData) {
   const profile = await getCurrentProfile();
   if (!profile) throw new Error("Not signed in");
-  if (!profile.department_id) throw new Error("No department assigned");
+
+  const departmentId = String(formData.get("department_id") || "");
+  if (!departmentId) throw new Error("Choose a department");
+  if (profile.role !== "admin" && !profile.department_ids.includes(departmentId)) {
+    throw new Error("You can only add records to your own department(s)");
+  }
 
   const title = String(formData.get("title") || "");
   const category = String(formData.get("category") || "general");
@@ -15,7 +20,7 @@ export async function createRecord(formData: FormData) {
 
   const supabase = createClient();
   const { error } = await supabase.from("records").insert({
-    department_id: profile.department_id,
+    department_id: departmentId,
     title,
     category,
     data: { notes },
