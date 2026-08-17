@@ -24,18 +24,52 @@ export async function addDepartment(formData: FormData) {
   revalidatePath("/admin");
 }
 
-export async function updateUserAssignment(formData: FormData) {
-  await requireAdmin();
-  const userId = String(formData.get("user_id") || "");
-  const departmentId = String(formData.get("department_id") || "") || null;
-  const role = String(formData.get("role") || "staff");
+export type ActionResult = { ok: boolean; error?: string };
 
-  const supabase = createClient();
-  const { error } = await supabase
-    .from("profiles")
-    .update({ department_id: departmentId, role })
-    .eq("id", userId);
-  if (error) throw new Error(error.message);
+// Called directly from a client component (not as a <form action>), so
+// it can report success/failure back to the row that triggered it
+// instead of failing silently.
+export async function updateUserAssignment(input: {
+  userId: string;
+  departmentIds: string[];
+  role: string;
+}): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    const { userId, departmentIds, role } = input;
 
-  revalidatePath("/admin");
+    if (!userId) return { ok: false, error: "Missing user" };
+    if (!["staff", "manager", "admin"].includes(role)) {
+      return { ok: false, error: "Invalid role" };
+    }
+
+    const supabase = createClient();
+
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({ role, department_id: departmentIds[0] ?? null })
+      .eq("id", userId);
+    if (profileError) return { ok: false, error: profileError.message };
+
+    const { error: deleteError } = await supabase
+      .from("profile_departments")
+      .delete()
+      .eq("profile_id", userId);
+    if (deleteError) return { ok: false, error: deleteError.message };
+
+    if (departmentIds.length > 0) {
+      const { error: insertError } = await supabase.from("profile_departments").insert(
+        departmentIds.map((department_id) => ({
+          profile_id: userId,
+          department_id,
+        }))
+      );
+      if (insertError) return { ok: false, error: insertError.message };
+    }
+
+    revalidatePath("/", "layout");
+    return { ok: true };
+  } catch (err: any) {
+    return { ok: false, error: err?.message ?? "Something went wrong" };
+  }
 }
