@@ -9,7 +9,7 @@ export default async function SalesPage() {
   const profile = await getCurrentProfile();
   if (!profile) return null;
 
-  if (!profile.department_id && profile.role !== "admin") {
+  if (profile.departments.length === 0 && profile.role !== "admin") {
     return (
       <>
         <Nav profile={profile} />
