@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 export type MemorandumPdfHeader = {
   memo_no: string;
   memo_date: string;
@@ -17,8 +19,47 @@ function toDMY(value: string | null) {
   return `${y}/${m}/${d}`;
 }
 
-export default function MemorandumPdfButton({ memo }: { memo: MemorandumPdfHeader }) {
+// Fetches an image URL and returns it as a data URL plus its jsPDF format
+// string and pixel dimensions (for aspect-ratio-preserving placement).
+async function loadImage(url: string) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to fetch ${url}`);
+  const blob = await res.blob();
+  const dataUrl: string = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+  const { width, height } = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => reject(new Error("Failed to decode image"));
+    img.src = dataUrl;
+  });
+  const format = blob.type.includes("png") ? "PNG" : blob.type.includes("gif") ? "GIF" : "JPEG";
+  return { dataUrl, format, width, height };
+}
+
+export default function MemorandumPdfButton({
+  memo,
+  imageUrls = [],
+}: {
+  memo: MemorandumPdfHeader;
+  imageUrls?: string[];
+}) {
+  const [exporting, setExporting] = useState(false);
+
   async function handleExport() {
+    setExporting(true);
+    try {
+      await buildAndSavePdf();
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function buildAndSavePdf() {
     const { jsPDF } = await import("jspdf");
     const { default: sarabunRegular } = await import("@/lib/pdf-fonts/sarabun-regular");
     const { default: sarabunBold } = await import("@/lib/pdf-fonts/sarabun-bold");
@@ -125,15 +166,46 @@ export default function MemorandumPdfButton({ memo }: { memo: MemorandumPdfHeade
       doc.setTextColor(0);
     });
 
+    // Attached images — one per page, scaled to fit within the margins
+    // while preserving aspect ratio. A failed image (e.g. deleted from
+    // storage, or an unsupported format) is skipped, not fatal — the rest
+    // of the export still completes.
+    const pageHeight = doc.internal.pageSize.getHeight();
+    for (let i = 0; i < imageUrls.length; i++) {
+      try {
+        const { dataUrl, format, width, height } = await loadImage(imageUrls[i]);
+        doc.addPage();
+        doc.setFont("Sarabun", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(0);
+        doc.text(`เอกสารแนบ ${i + 1} / ${imageUrls.length}`, marginX, 40);
+
+        const maxW = contentWidth;
+        const maxH = pageHeight - 90;
+        const aspect = width / height;
+        let w = maxW;
+        let h = w / aspect;
+        if (h > maxH) {
+          h = maxH;
+          w = h * aspect;
+        }
+        const x = marginX + (maxW - w) / 2;
+        doc.addImage(dataUrl, format, x, 56, w, h);
+      } catch (err) {
+        console.error("Skipping attachment in PDF export:", err);
+      }
+    }
+
     doc.save(`Memorandum-${memo.memo_no.replace("/", "-")}.pdf`);
   }
 
   return (
     <button
       onClick={handleExport}
-      className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+      disabled={exporting}
+      className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
     >
-      Export PDF
+      {exporting ? "กำลังสร้าง PDF…" : "Export PDF"}
     </button>
   );
 }
