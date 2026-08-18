@@ -28,6 +28,10 @@ export default async function MemorandumDetailPage({ params }: { params: { id: s
     : { data: [] as { id: string; full_name: string | null }[] };
   const nameOf = (id: string | null) => signers?.find((s) => s.id === id)?.full_name ?? null;
 
+  const imageUrls: string[] = (memo.image_paths ?? []).map(
+    (path: string) => supabase.storage.from("memorandum-attachments").getPublicUrl(path).data.publicUrl
+  );
+
   const canDecide = profile.role === "admin" || profile.role === "manager";
   const canDelete = canDecide;
 
@@ -59,6 +63,7 @@ export default async function MemorandumDetailPage({ params }: { params: { id: s
                   reviewed_by_name: nameOf(memo.reviewed_by),
                   approved_by_name: nameOf(memo.approved_by),
                 }}
+                imageUrls={imageUrls}
               />
             </div>
           </div>
@@ -80,6 +85,32 @@ export default async function MemorandumDetailPage({ params }: { params: { id: s
             <Item label="Reviewed by" value={nameOf(memo.reviewed_by)} />
             <Item label="Approved by" value={nameOf(memo.approved_by)} />
           </dl>
+
+          {imageUrls.length > 0 && (
+            <div className="mt-6">
+              <div className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">
+                Attachments (เอกสารแนบ)
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {imageUrls.map((url, i) => (
+                  <a
+                    key={url}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block h-24 w-24 overflow-hidden rounded-md border border-gray-200"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={url}
+                      alt={`เอกสารแนบ ${i + 1}`}
+                      className="h-full w-full object-cover"
+                    />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
 
           {canDecide && memo.status === "pending" && (
             <div className="mt-6 flex gap-2 border-t border-gray-100 pt-4">
