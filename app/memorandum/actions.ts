@@ -5,40 +5,61 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/profile";
 
-export async function createMemorandum(formData: FormData) {
+export type CreateMemorandumInput = {
+  id: string; // generated client-side so uploaded images can be namespaced
+  // under it before the row exists.
+  memo_date: string;
+  subject: string;
+  to_recipient: string;
+  details: string;
+  recorded_by: string;
+  reviewed_by: string;
+  approved_by: string;
+  image_paths: string[];
+};
+
+// Called directly from MemorandumForm (a client component) rather than as a
+// native <form action>, because images are uploaded straight from the
+// browser to Supabase Storage first — this only ever receives small text
+// fields plus the resulting storage paths. Returns {ok, id} / {ok, error}
+// instead of throwing/redirecting, since redirect() doesn't propagate
+// correctly when a server action is awaited directly like this (only when
+// used as a native form action) — the caller navigates itself on success.
+export async function createMemorandum(
+  input: CreateMemorandumInput
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const profile = await getCurrentProfile();
-  if (!profile) throw new Error("Not signed in");
+  if (!profile) return { ok: false, error: "Not signed in" };
 
-  const field = (name: string) => {
-    const v = String(formData.get(name) || "").trim();
-    return v.length > 0 ? v : null;
-  };
+  const field = (v: string) => (v.trim().length > 0 ? v.trim() : null);
 
-  const subject = field("subject");
-  const details = field("details");
-  if (!subject) throw new Error("Subject is required");
-  if (!details) throw new Error("Details is required");
+  const subject = field(input.subject);
+  const details = field(input.details);
+  if (!subject) return { ok: false, error: "Subject is required" };
+  if (!details) return { ok: false, error: "Details is required" };
 
   const supabase = createClient();
   const { data: memo, error } = await supabase
     .from("memorandums")
     .insert({
-      memo_date: field("memo_date") || new Date().toISOString().slice(0, 10),
+      id: input.id,
+      memo_date: field(input.memo_date) || new Date().toISOString().slice(0, 10),
       subject,
-      to_recipient: field("to_recipient"),
+      to_recipient: field(input.to_recipient),
       details,
-      recorded_by: field("recorded_by") || profile.id,
-      reviewed_by: field("reviewed_by"),
-      approved_by: field("approved_by"),
+      recorded_by: field(input.recorded_by) || profile.id,
+      reviewed_by: field(input.reviewed_by),
+      approved_by: field(input.approved_by),
       created_by: profile.id,
+      image_paths: input.image_paths,
     })
     .select("id")
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) return { ok: false, error: error.message };
 
   revalidatePath("/memorandum");
-  redirect(`/memorandum/${memo.id}`);
+  return { ok: true, id: memo.id };
 }
 
 export async function decideMemorandum(formData: FormData) {
