@@ -122,8 +122,8 @@ export default function MemorandumPdfButton({
     doc.rect(col2, y, fieldWidth, 26);
     doc.setFont("Sarabun", "normal");
     doc.setFontSize(10);
-    doc.text(doc.splitTextToSize(memo.subject || "-", fieldWidth - 12), marginX + 6, y + 16);
-    doc.text(doc.splitTextToSize(memo.to_recipient || "-", fieldWidth - 12), col2 + 6, y + 16);
+    doc.text(doc.splitTextToSize((memo.subject || "-").replace(/\t/g, " "), fieldWidth - 12), marginX + 6, y + 16);
+    doc.text(doc.splitTextToSize((memo.to_recipient || "-").replace(/\t/g, " "), fieldWidth - 12), col2 + 6, y + 16);
     y += 26 + 20;
 
     // รายละเอียด
@@ -133,7 +133,7 @@ export default function MemorandumPdfButton({
     y += 16;
     doc.setFont("Sarabun", "normal");
     doc.setFontSize(10);
-    const detailLines = doc.splitTextToSize(memo.details || "-", contentWidth);
+    const detailLines = doc.splitTextToSize((memo.details || "-").replace(/\t/g, " "), contentWidth);
     doc.text(detailLines, marginX, y);
     y += detailLines.length * 14 + 16;
 
