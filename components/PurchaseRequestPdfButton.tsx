@@ -129,7 +129,7 @@ export default function PurchaseRequestPdfButton({
     doc.text(label.toUpperCase(), marginX, y);
     doc.setFont("Sarabun", "normal");
     doc.setFontSize(10);
-    const lines = doc.splitTextToSize(value || "-", pageWidth - marginX * 2);
+    const lines = doc.splitTextToSize((value || "-").replace(/\t/g, " "), pageWidth - marginX * 2);
     doc.text(lines, marginX, y + 13);
     y += 13 + lines.length * 13 + 8;
   };
