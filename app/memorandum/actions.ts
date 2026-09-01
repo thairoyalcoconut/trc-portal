@@ -69,6 +69,65 @@ revalidatePath("/memorandum");
   return { ok: true, id: memo.id };
 }
 
+export type UpdateMemorandumInput = {
+  id: string;
+  memo_date: string;
+  subject: string;
+  to_recipient: string;
+  details: string;
+  recorded_by: string;
+  reviewed_by: string;
+  approved_by: string;
+};
+
+// Lets an admin/manager go back and correct a memo after it was saved —
+// fix a typo in the subject/details, adjust a signer, etc. Gated to the
+// same admin/manager tier as decideMemorandum/deleteMemorandum below,
+// since a memorandum is a signed-off record once created and editing it
+// shouldn't be open to every signed-in user. Attachments (image_paths)
+// are intentionally left untouched here — this form doesn't manage them
+// yet, so a memo's existing images survive an edit unchanged.
+export async function updateMemorandum(
+  input: UpdateMemorandumInput
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const profile = await getCurrentProfile();
+  if (!profile) return { ok: false, error: "Not signed in" };
+  if (profile.role !== "admin" && profile.role !== "manager") {
+    return { ok: false, error: "Only managers or admins can edit a memorandum" };
+  }
+  
+  const field = (v: string) => (v.trim().length > 0 ? v.trim() : null);
+  
+  const subject = field(input.subject);
+  const rawDetails = field(input.details);
+  if (!subject) return { ok: false, error: "Subject is required" };
+  if (!rawDetails) return { ok: false, error: "Details is required" };
+  // Same server-side re-sanitize boundary as createMemorandum above.
+  const details = sanitizeMemoHtml(rawDetails);
+  if (!details) return { ok: false, error: "Details is required" };
+  
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("memorandums")
+    .update({
+      memo_date: field(input.memo_date) || new Date().toISOString().slice(0, 10),
+      subject,
+      to_recipient: field(input.to_recipient),
+      details,
+      recorded_by: field(input.recorded_by) || profile.id,
+      reviewed_by: field(input.reviewed_by),
+      approved_by: field(input.approved_by),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.id);
+  
+  if (error) return { ok: false, error: error.message };
+  
+  revalidatePath("/memorandum");
+  revalidatePath(`/memorandum/${input.id}`);
+  return { ok: true };
+}
+
 export async function decideMemorandum(formData: FormData) {
   const profile = await getCurrentProfile();
   if (!profile) throw new Error("Not signed in");
