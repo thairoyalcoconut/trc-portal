@@ -61,7 +61,19 @@ function parseStyleAttr(style: string): { color: string | null; fontSize: number
 
 function decodeEntities(text: string): string {
   return text
-  .replace(/&nbsp;/g, " ")
+  // "&nbsp;" -> a *real* U+00A0 non-breaking space, not a plain " ".
+  // The browser's own HTML serializer escapes every literal U+00A0 a user
+  // typed (e.g. via Tab-to-indent, see components/RichTextEditor.tsx) to
+  // "&nbsp;" when it builds editorRef.current.innerHTML — so by the time
+  // that HTML reaches here, an indent is "&nbsp;" text, not a raw NBSP
+  // byte. Decoding it to a plain space used to throw the indent away: a
+  // run of plain spaces is "collapsible whitespace" under normal CSS
+  // (see the .memo-rich-body rendering in MemoPrintPreview.tsx, which has
+  // no white-space:pre/pre-wrap) and the browser collapses it down to a
+  // single space, so Tab-indented paragraphs looked un-indented in the
+  // print preview / exported PDF even though they were fine in the editor
+  // itself. A real U+00A0 is never collapsible, so it survives.
+  .replace(/&nbsp;/g, " ")
   .replace(/&lt;/g, "<")
   .replace(/&gt;/g, ">")
   .replace(/&quot;/g, '"')
