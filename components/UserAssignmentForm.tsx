@@ -7,7 +7,7 @@ type Department = { id: string; name: string };
 
 export default function UserAssignmentForm({
   userId,
-  fullName,
+  fullName: initialFullName,
   role: initialRole,
   departments,
   assignedDepartmentIds,
@@ -20,6 +20,7 @@ export default function UserAssignmentForm({
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set(assignedDepartmentIds));
   const [role, setRole] = useState(initialRole);
+  const [fullName, setFullName] = useState(initialFullName || "");
   const [isPending, startTransition] = useTransition();
   const [status, setStatus] = useState<{ ok: boolean; message: string } | null>(null);
 
@@ -40,6 +41,7 @@ export default function UserAssignmentForm({
         userId,
         departmentIds: Array.from(selected),
         role,
+        fullName,
       });
       setStatus(
         result.ok
@@ -51,9 +53,16 @@ export default function UserAssignmentForm({
 
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-md border border-gray-100 p-3">
-      <span className="w-40 shrink-0 truncate text-sm font-medium text-gray-800">
-        {fullName || userId}
-      </span>
+      <input
+        type="text"
+        value={fullName}
+        onChange={(e) => {
+          setStatus(null);
+          setFullName(e.target.value);
+        }}
+        placeholder="Full name"
+        className="w-40 shrink-0 rounded-md border border-gray-200 px-2 py-1.5 text-sm font-medium text-gray-800 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+      />
 
       <div className="flex flex-1 flex-wrap gap-2">
         {departments.length === 0 && (
