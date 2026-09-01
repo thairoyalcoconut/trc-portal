@@ -53,6 +53,14 @@ return (
   </div>
   <div className="flex items-center gap-2">
   <StatusBadge status={memo.status} />
+    {canDecide && (
+    <Link
+      href={`/memorandum/${memo.id}/edit`}
+      className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+      >
+    Edit
+    </Link>
+    )}
   <MemorandumPdfButton
     memo={{
       memo_no: memo.memo_no,
