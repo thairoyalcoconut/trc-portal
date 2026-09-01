@@ -33,21 +33,24 @@ export async function updateUserAssignment(input: {
   userId: string;
   departmentIds: string[];
   role: string;
+  fullName: string;
 }): Promise<ActionResult> {
   try {
     await requireAdmin();
-    const { userId, departmentIds, role } = input;
+    const { userId, departmentIds, role, fullName } = input;
 
     if (!userId) return { ok: false, error: "Missing user" };
     if (!["staff", "manager", "admin"].includes(role)) {
       return { ok: false, error: "Invalid role" };
     }
+    const trimmedName = fullName.trim();
+    if (!trimmedName) return { ok: false, error: "Full name is required" };
 
     const supabase = createClient();
 
     const { error: profileError } = await supabase
       .from("profiles")
-      .update({ role, department_id: departmentIds[0] ?? null })
+      .update({ role, department_id: departmentIds[0] ?? null, full_name: trimmedName })
       .eq("id", userId);
     if (profileError) return { ok: false, error: profileError.message };
 
@@ -72,4 +75,32 @@ export async function updateUserAssignment(input: {
   } catch (err: any) {
     return { ok: false, error: err?.message ?? "Something went wrong" };
   }
+}
+
+// Non-login "signer" entries — a person who should be selectable as
+// recorded/reviewed/approved-by on a memorandum (see staff_directory()
+// in supabase/migrations/0007_non_login_staff.sql) without ever having a
+// portal login account, e.g. a company executive who only signs on paper.
+export async function addNonLoginStaff(formData: FormData) {
+  await requireAdmin();
+  const fullName = String(formData.get("full_name") || "").trim();
+  if (!fullName) return;
+
+  const supabase = createClient();
+  const { error } = await supabase.from("non_login_staff").insert({ full_name: fullName });
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/admin");
+}
+
+export async function deleteNonLoginStaff(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id") || "");
+  if (!id) return;
+
+  const supabase = createClient();
+  const { error } = await supabase.from("non_login_staff").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/admin");
 }
