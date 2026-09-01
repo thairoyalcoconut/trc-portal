@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/profile";
 import Nav from "@/components/Nav";
 import UserAssignmentForm from "@/components/UserAssignmentForm";
-import { addDepartment } from "./actions";
+import { addDepartment, addNonLoginStaff, deleteNonLoginStaff } from "./actions";
 
 export default async function AdminPage() {
   const profile = await getCurrentProfile();
@@ -20,11 +20,13 @@ export default async function AdminPage() {
   }
 
   const supabase = createClient();
-  const [{ data: departments }, { data: profiles }, { data: memberships }] = await Promise.all([
-    supabase.from("departments").select("id, name").order("name"),
-    supabase.from("profiles").select("id, full_name, role").order("full_name"),
-    supabase.from("profile_departments").select("profile_id, department_id"),
-  ]);
+  const [{ data: departments }, { data: profiles }, { data: memberships }, { data: nonLoginStaff }] =
+    await Promise.all([
+      supabase.from("departments").select("id, name").order("name"),
+      supabase.from("profiles").select("id, full_name, role").order("full_name"),
+      supabase.from("profile_departments").select("profile_id, department_id"),
+      supabase.from("non_login_staff").select("id, full_name").order("full_name"),
+    ]);
 
   const assignedByUser = new Map<string, string[]>();
   (memberships ?? []).forEach((m) => {
@@ -70,7 +72,9 @@ export default async function AdminPage() {
         <section className="mt-8 rounded-lg border border-gray-200 bg-white p-6">
           <h2 className="mb-4 text-sm font-medium text-gray-700">Users</h2>
           <p className="mb-4 text-xs text-gray-400">
-            Check every department a person should belong to, pick their role, then Save.
+            Check every department a person should belong to, pick their role, edit their
+            full name if needed, then Save. This full name is what shows up as recorded /
+            reviewed / approved-by on a memorandum.
           </p>
           <div className="space-y-3">
             {(profiles ?? []).map((p) => (
@@ -84,6 +88,43 @@ export default async function AdminPage() {
               />
             ))}
           </div>
+        </section>
+
+        <section className="mt-8 rounded-lg border border-gray-200 bg-white p-6">
+          <h2 className="mb-4 text-sm font-medium text-gray-700">Non-login Signers</h2>
+          <p className="mb-4 text-xs text-gray-400">
+            People who should be selectable as recorded / reviewed / approved-by on a
+            memorandum but don&apos;t have a portal login account — e.g. an executive who
+            only ever signs on paper.
+          </p>
+          <ul className="mb-4 space-y-2">
+            {(nonLoginStaff ?? []).length === 0 && (
+              <li className="text-xs text-gray-400">None yet</li>
+            )}
+            {(nonLoginStaff ?? []).map((s) => (
+              <li
+                key={s.id}
+                className="flex items-center justify-between rounded-md border border-gray-100 px-3 py-2 text-sm"
+              >
+                <span className="text-gray-800">{s.full_name}</span>
+                <form action={deleteNonLoginStaff}>
+                  <input type="hidden" name="id" value={s.id} />
+                  <button className="text-xs text-red-500 hover:underline">Remove</button>
+                </form>
+              </li>
+            ))}
+          </ul>
+          <form action={addNonLoginStaff} className="flex gap-2">
+            <input
+              name="full_name"
+              placeholder="Full name (e.g. คุณสุรพงษ์ หาญไกรวิไลย์)"
+              required
+              className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
+            />
+            <button className="rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700">
+              Add
+            </button>
+          </form>
         </section>
       </main>
     </>
