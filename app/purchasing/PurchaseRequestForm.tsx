@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { createPurchaseRequest } from "./actions";
 
+type Staff = { id: string; full_name: string | null };
+
 type Item = {
   item_code: string;
   description: string;
@@ -26,7 +28,15 @@ const emptyItem = (): Item => ({
 const inputClass =
   "w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500";
 
-export default function PurchaseRequestForm({ today }: { today: string }) {
+export default function PurchaseRequestForm({
+  today,
+  staff,
+  defaultRecordedBy,
+}: {
+  today: string;
+  staff: Staff[];
+  defaultRecordedBy: string;
+}) {
   const [items, setItems] = useState<Item[]>([emptyItem()]);
 
 function updateItem(index: number, field: keyof Item, value: string) {
@@ -191,6 +201,41 @@ return (
     className={inputClass}
     />
   </label>
+  
+  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+  <label className="block">
+  <span className="mb-1 block text-sm font-medium text-gray-700">Recorded by</span>
+  <select name="recorded_by" defaultValue={defaultRecordedBy} className={inputClass}>
+    {staff.map((s) => (
+      <option key={s.id} value={s.id}>
+        {s.full_name || "-"}
+      </option>
+      ))}
+  </select>
+  </label>
+  <label className="block">
+  <span className="mb-1 block text-sm font-medium text-gray-700">Reviewed by</span>
+  <select name="reviewed_by" defaultValue="" className={inputClass}>
+  <option value="">-</option>
+    {staff.map((s) => (
+      <option key={s.id} value={s.id}>
+        {s.full_name || "-"}
+      </option>
+      ))}
+  </select>
+  </label>
+  <label className="block">
+  <span className="mb-1 block text-sm font-medium text-gray-700">Approved by</span>
+  <select name="approved_by" defaultValue="" className={inputClass}>
+  <option value="">-</option>
+    {staff.map((s) => (
+      <option key={s.id} value={s.id}>
+        {s.full_name || "-"}
+      </option>
+      ))}
+  </select>
+  </label>
+  </div>
   
   <div className="flex items-center gap-3">
   <button className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700">

@@ -66,6 +66,13 @@ const { data: pr, error } = await supabase
     replaces_pr_no: field("replaces_pr_no"),
     note: field("note"),
     requested_by: profile.id,
+    // Same pattern as createMemorandum: Recorded by defaults to whoever is
+    // keying this PR in (their own account) but can be overridden in the
+    // form's select, e.g. when keying in a paper PR on someone else's
+    // behalf. Reviewed by / Approved by are optional at creation time.
+    recorded_by: field("recorded_by") || profile.id,
+    reviewed_by: field("reviewed_by"),
+    approved_by: field("approved_by"),
   })
   .select("id")
   .single();

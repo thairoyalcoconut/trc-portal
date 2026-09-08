@@ -26,6 +26,13 @@ const { data: items } = await supabase
   .eq("purchase_request_id", params.id)
   .order("position", { ascending: true });
 
+// staff_directory() (not a direct `profiles` query) so a signer who is a
+// non-login entry (see supabase/migrations/0007_non_login_staff.sql)
+// resolves to their real name here too — same as memorandum/[id]/page.tsx.
+const { data: allStaff } = await supabase.rpc("staff_directory");
+  const nameOf = (id: string | null) =>
+    (allStaff ?? []).find((s: { id: string; full_name: string | null }) => s.id === id)?.full_name ?? null;
+
 const prItems = items ?? [];
   const canDecide = profile.role === "admin" || profile.role === "manager";
 
@@ -46,7 +53,15 @@ return (
   <StatusBadge status={pr.status} />
   </div>
   </div>
-  <PurchaseRequestPdfButton pr={pr} items={prItems} />
+  <PurchaseRequestPdfButton
+  pr={{
+    ...pr,
+    recorded_by_name: nameOf(pr.recorded_by),
+    reviewed_by_name: nameOf(pr.reviewed_by),
+    approved_by_name: nameOf(pr.approved_by),
+  }}
+  items={prItems}
+  />
   </div>
   
   <dl className="mt-6 grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-3">
@@ -100,6 +115,12 @@ return (
   
   <dl className="mt-6 grid grid-cols-1 gap-y-4">
   <Item label="Note" value={pr.note} />
+  </dl>
+  
+  <dl className="mt-6 grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-3 border-t border-gray-100 pt-4">
+  <Item label="Recorded by" value={nameOf(pr.recorded_by)} />
+  <Item label="Reviewed by" value={nameOf(pr.reviewed_by)} />
+  <Item label="Approved by" value={nameOf(pr.approved_by)} />
   </dl>
   
     {canDecide && pr.status === "pending" && (

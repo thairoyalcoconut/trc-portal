@@ -9,6 +9,9 @@ export type PurchaseRequestPdfHeader = {
   job_no: string | null;
   replaces_pr_no: string | null;
   note: string | null;
+  recorded_by_name: string | null;
+  reviewed_by_name: string | null;
+  approved_by_name: string | null;
 };
 
 export type PurchaseRequestPdfItem = {
@@ -49,6 +52,8 @@ export default function PurchaseRequestPdfButton({
 
   const marginX = 40;
     const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const contentWidth = pageWidth - marginX * 2;
 
   doc.setFont("Sarabun", "bold");
     doc.setFontSize(14);
@@ -135,6 +140,36 @@ export default function PurchaseRequestPdfButton({
   };
 
   block("Note", pr.note);
+
+  // Signature footer — three equal columns, same layout as the Memorandum
+  // PDF export (see components/MemorandumPdfButton.tsx), but with English
+  // labels to match the rest of this document's language.
+  y += 30;
+  if (y + 60 > pageHeight - 40) {
+    doc.addPage();
+    y = 56;
+  }
+  const footerTop = Math.max(y, pageHeight - 110);
+  const colWidth = contentWidth / 3;
+  const signers = [
+    { label: "Recorded by", name: pr.recorded_by_name },
+    { label: "Reviewed by", name: pr.reviewed_by_name },
+    { label: "Approved by", name: pr.approved_by_name },
+  ];
+  signers.forEach((s, i) => {
+    const x = marginX + colWidth * i;
+    const center = x + colWidth / 2;
+    doc.setDrawColor(150);
+    doc.line(x + 20, footerTop, x + colWidth - 20, footerTop);
+    doc.setFont("Sarabun", "bold");
+    doc.setFontSize(10);
+    doc.text(s.name || "-", center, footerTop + 16, { align: "center" });
+    doc.setFont("Sarabun", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(90);
+    doc.text(s.label, center, footerTop + 30, { align: "center" });
+    doc.setTextColor(0);
+  });
 
   doc.save(`PurchaseRequest-${pr.pr_no.replace("/", "-")}.pdf`);
   }
