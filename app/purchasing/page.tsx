@@ -10,10 +10,13 @@ export default async function PurchasingPage() {
   if (!profile) return null;
 
 const supabase = createClient();
-  const { data: prs } = await supabase
-  .from("purchase_requests")
-  .select("id, pr_no, request_date, request_department, status")
-  .order("created_at", { ascending: false });
+  const [{ data: prs }, { data: staff }] = await Promise.all([
+    supabase
+      .from("purchase_requests")
+      .select("id, pr_no, request_date, request_department, status")
+      .order("created_at", { ascending: false }),
+    supabase.rpc("staff_directory"),
+  ]);
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -26,7 +29,7 @@ return (
   PR No. is generated automatically (PR-YYYY/001) — no need to fill it in.
   </p>
   
-  <PurchaseRequestForm today={today} />
+  <PurchaseRequestForm today={today} staff={staff ?? []} defaultRecordedBy={profile.id} />
   
   <div className="mt-6 overflow-hidden rounded-lg border border-gray-200 bg-white">
   <table className="min-w-full divide-y divide-gray-100 text-sm">
