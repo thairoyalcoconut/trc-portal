@@ -1,9 +1,8 @@
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/profile";
 import Nav from "@/components/Nav";
-import StatusBadge from "@/components/StatusBadge";
 import PurchaseRequestForm from "./PurchaseRequestForm";
+import PurchaseRequestTable from "./PurchaseRequestTable";
 
 export default async function PurchasingPage() {
   const profile = await getCurrentProfile();
@@ -30,42 +29,8 @@ return (
   </p>
   
   <PurchaseRequestForm today={today} staff={staff ?? []} defaultRecordedBy={profile.id} />
-  
-  <div className="mt-6 overflow-hidden rounded-lg border border-gray-200 bg-white">
-  <table className="min-w-full divide-y divide-gray-100 text-sm">
-  <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
-  <tr>
-  <th className="px-4 py-2">PR No.</th>
-  <th className="px-4 py-2">Date</th>
-  <th className="px-4 py-2">Department</th>
-  <th className="px-4 py-2">Status</th>
-  </tr>
-  </thead>
-  <tbody className="divide-y divide-gray-100">
-    {(prs ?? []).map((p) => (
-    <tr key={p.id}>
-    <td className="px-4 py-2 font-medium text-brand-700">
-    <Link href={`/purchasing/${p.id}`} className="hover:underline">
-      {p.pr_no}
-    </Link>
-    </td>
-    <td className="px-4 py-2 text-gray-500">{p.request_date}</td>
-    <td className="px-4 py-2 text-gray-700">{p.request_department}</td>
-    <td className="px-4 py-2">
-    <StatusBadge status={p.status} />
-    </td>
-    </tr>
-    ))}
-    {(prs ?? []).length === 0 && (
-    <tr>
-    <td colSpan={4} className="px-4 py-6 text-center text-gray-400">
-    No purchasing requests yet.
-    </td>
-    </tr>
-    )}
-  </tbody>
-  </table>
-  </div>
+
+  <PurchaseRequestTable prs={prs ?? []} />
   </main>
   </>
   );
