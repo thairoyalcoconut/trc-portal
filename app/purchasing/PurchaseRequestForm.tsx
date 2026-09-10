@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import { createPurchaseRequest, updatePurchaseRequest } from "./actions";
 
 type Staff = { id: string; full_name: string | null };
@@ -14,6 +16,8 @@ type Item = {
   date_needed: string;
   remark: string;
 };
+
+const ATTACHMENTS_BUCKET = "purchase-request-attachments";
 
 // Same shape as SaleOrderDefaults in ../sales/SaleOrderForm.tsx: pass
 // `pr` (with an id) to render this in edit mode against updatePurchaseRequest,
@@ -30,6 +34,7 @@ export type PurchaseRequestDefaults = {
   recorded_by?: string | null;
   reviewed_by?: string | null;
   approved_by?: string | null;
+  image_paths?: string[] | null;
 };
 
 const emptyItem = (): Item => ({
@@ -58,10 +63,23 @@ export default function PurchaseRequestForm({
   pr?: PurchaseRequestDefaults;
   items?: Item[];
 }) {
+  const router = useRouter();
+  // Memoized so re-renders (e.g. typing in a field) don't spin up a fresh
+  // Supabase client on every image thumbnail render — one instance per
+  // mount, reused for the public-URL lookups below and for the upload in
+  // handleSubmit.
+  const supabase = useMemo(() => createClient(), []);
   const isEdit = Boolean(pr?.id);
   const [items, setItems] = useState<Item[]>(
     initialItems && initialItems.length > 0 ? initialItems : [emptyItem()]
   );
+  // Existing attachment paths this PR already has (edit mode only) — the
+  // "×" on a thumbnail below just drops it from this list, same no-undo
+  // pattern as removing an item row. The final list saved on submit is
+  // this (whatever's left) plus whatever new files get uploaded.
+  const [keepPaths, setKeepPaths] = useState<string[]>(pr?.image_paths ?? []);
+  const [status, setStatus] = useState<"idle" | "uploading" | "saving">("idle");
+  const [error, setError] = useState<string | null>(null);
 
   function updateItem(index: number, field: keyof Item, value: string) {
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, [field]: value } : it)));
@@ -75,14 +93,108 @@ export default function PurchaseRequestForm({
     setItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
   }
 
-  const formBody = (
-    <form
-      action={isEdit ? updatePurchaseRequest : createPurchaseRequest}
-      className="space-y-4 border-t border-gray-100 p-4"
-    >
-      {isEdit && <input type="hidden" name="id" value={pr!.id} />}
-      <input type="hidden" name="items_json" value={JSON.stringify(items)} />
+  function removeExistingImage(path: string) {
+    setKeepPaths((prev) => prev.filter((p) => p !== path));
+  }
 
+  function publicUrlFor(path: string) {
+    return supabase.storage.from(ATTACHMENTS_BUCKET).getPublicUrl(path).data.publicUrl;
+  }
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const files = (fd.getAll("images") as File[]).filter((f) => f.size > 0);
+
+    // New images upload straight from the browser to Supabase Storage —
+    // skipping our server action entirely — since Vercel caps a serverless
+    // function's request body well below typical photo sizes. Only the
+    // resulting storage paths get sent to the server. Same approach as
+    // MemorandumForm.tsx.
+    const recordId = pr?.id ?? crypto.randomUUID();
+    let uploadedPaths: string[] = [];
+    let failedCount = 0;
+
+    if (files.length > 0) {
+      setStatus("uploading");
+      const results = await Promise.allSettled(
+        files.map((file, i) => {
+          const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+          const path = `${recordId}/${Date.now()}-${i}-${safeName}`;
+          return supabase.storage
+            .from(ATTACHMENTS_BUCKET)
+            .upload(path, file, { contentType: file.type })
+            .then(({ error }) => {
+              if (error) throw error;
+              return path;
+            });
+        })
+      );
+      uploadedPaths = results
+        .filter((r): r is PromiseFulfilledResult<string> => r.status === "fulfilled")
+        .map((r) => r.value);
+      failedCount = results.length - uploadedPaths.length;
+    }
+
+    const image_paths = [...keepPaths, ...uploadedPaths];
+
+    const common = {
+      request_date: String(fd.get("request_date") || ""),
+      request_department: String(fd.get("request_department") || ""),
+      division: String(fd.get("division") || ""),
+      line: String(fd.get("line") || ""),
+      job_no: String(fd.get("job_no") || ""),
+      replaces_pr_no: String(fd.get("replaces_pr_no") || ""),
+      note: String(fd.get("note") || ""),
+      recorded_by: String(fd.get("recorded_by") || ""),
+      reviewed_by: String(fd.get("reviewed_by") || ""),
+      approved_by: String(fd.get("approved_by") || ""),
+      items,
+      image_paths,
+    };
+
+    setStatus("saving");
+
+    // Handled as two explicit branches (rather than one ternary picking
+    // between the two action calls) so TypeScript can narrow each result to
+    // its own return type — createPurchaseRequest's success case carries an
+    // `id`, updatePurchaseRequest's doesn't need one since it's already
+    // known (pr.id).
+    let targetId: string;
+    if (isEdit) {
+      const result = await updatePurchaseRequest({ id: pr!.id, ...common });
+      if (!result.ok) {
+        setStatus("idle");
+        setError(result.error);
+        return;
+      }
+      targetId = pr!.id;
+    } else {
+      const result = await createPurchaseRequest({ id: recordId, ...common });
+      if (!result.ok) {
+        setStatus("idle");
+        setError(result.error);
+        return;
+      }
+      targetId = result.id;
+    }
+
+    if (failedCount > 0) {
+      setError(
+        `Saved, but ${failedCount} image${failedCount > 1 ? "s" : ""} failed to upload — open this PR and attach again.`
+      );
+    }
+
+    router.push(`/purchasing/${targetId}`);
+  }
+
+  const busy = status !== "idle";
+
+  const formBody = (
+    <form onSubmit={handleSubmit} className="space-y-4 border-t border-gray-100 p-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-gray-700">Department</span>
@@ -249,6 +361,42 @@ export default function PurchaseRequestForm({
         />
       </label>
 
+      <div>
+        <span className="mb-1 block text-sm font-medium text-gray-700">
+          Attach images <span className="font-normal text-gray-400">(optional, multiple allowed)</span>
+        </span>
+
+        {keepPaths.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-3">
+            {keepPaths.map((path) => (
+              <div key={path} className="relative h-20 w-20 overflow-hidden rounded-md border border-gray-200">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={publicUrlFor(path)} alt="Attachment" className="h-full w-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => removeExistingImage(path)}
+                  className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white hover:bg-black/80"
+                  aria-label="Remove image"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <input
+          name="images"
+          type="file"
+          accept="image/*"
+          multiple
+          className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100"
+        />
+        <span className="mt-1 block text-xs text-gray-400">
+          Images show on the detail page and are attached as extra pages after the main PR page in the exported PDF.
+        </span>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-gray-700">Recorded by</span>
@@ -284,9 +432,20 @@ export default function PurchaseRequestForm({
         </label>
       </div>
 
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
       <div className="flex items-center gap-3">
-        <button className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700">
-          {isEdit ? "Save changes" : "Submit Purchasing Request"}
+        <button
+          disabled={busy}
+          className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
+        >
+          {status === "uploading"
+            ? "Uploading images…"
+            : status === "saving"
+            ? "Saving…"
+            : isEdit
+            ? "Save changes"
+            : "Submit Purchasing Request"}
         </button>
         <span className="text-xs text-gray-400">
           {isEdit
