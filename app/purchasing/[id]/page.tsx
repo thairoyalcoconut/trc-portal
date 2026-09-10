@@ -53,6 +53,15 @@ return (
   <StatusBadge status={pr.status} />
   </div>
   </div>
+  <div className="flex items-center gap-2">
+    {canDecide && (
+    <Link
+      href={`/purchasing/${pr.id}/edit`}
+      className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+      >
+      Edit
+    </Link>
+    )}
   <PurchaseRequestPdfButton
   pr={{
     ...pr,
@@ -62,6 +71,7 @@ return (
   }}
   items={prItems}
   />
+  </div>
   </div>
   
   <dl className="mt-6 grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-3">
