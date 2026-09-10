@@ -36,6 +36,10 @@ const { data: allStaff } = await supabase.rpc("staff_directory");
 const prItems = items ?? [];
   const canDecide = profile.role === "admin" || profile.role === "manager";
 
+  const imageUrls: string[] = (pr.image_paths ?? []).map(
+    (path: string) => supabase.storage.from("purchase-request-attachments").getPublicUrl(path).data.publicUrl
+  );
+
 return (
   <>
   <Nav profile={profile} />
@@ -70,6 +74,7 @@ return (
     approved_by_name: nameOf(pr.approved_by),
   }}
   items={prItems}
+  imageUrls={imageUrls}
   />
   </div>
   </div>
@@ -126,13 +131,39 @@ return (
   <dl className="mt-6 grid grid-cols-1 gap-y-4">
   <Item label="Note" value={pr.note} />
   </dl>
-  
+
+    {imageUrls.length > 0 && (
+    <div className="mt-6">
+    <div className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">
+    Attachments
+    </div>
+    <div className="flex flex-wrap gap-3">
+      {imageUrls.map((url, i) => (
+      <a
+        key={url}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block h-24 w-24 overflow-hidden rounded-md border border-gray-200"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={url}
+          alt={`Attachment ${i + 1}`}
+          className="h-full w-full object-cover"
+        />
+      </a>
+      ))}
+    </div>
+    </div>
+    )}
+
   <dl className="mt-6 grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-3 border-t border-gray-100 pt-4">
   <Item label="Recorded by" value={nameOf(pr.recorded_by)} />
   <Item label="Reviewed by" value={nameOf(pr.reviewed_by)} />
   <Item label="Approved by" value={nameOf(pr.approved_by)} />
   </dl>
-  
+
     {canDecide && pr.status === "pending" && (
     <div className="mt-6 flex gap-2 border-t border-gray-100 pt-4">
     <form action={decidePurchaseRequest}>

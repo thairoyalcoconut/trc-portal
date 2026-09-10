@@ -1,5 +1,30 @@
 "use client";
 
+import { useState } from "react";
+
+// Fetches an image URL and returns it as a data URL plus its jsPDF format
+// string and pixel dimensions (for aspect-ratio-preserving placement).
+// Same helper as components/MemorandumPdfButton.tsx.
+async function loadImage(url: string) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to fetch ${url}`);
+  const blob = await res.blob();
+  const dataUrl: string = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+  const { width, height } = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => reject(new Error("Failed to decode image"));
+    img.src = dataUrl;
+  });
+  const format = blob.type.includes("png") ? "PNG" : blob.type.includes("gif") ? "GIF" : "JPEG";
+  return { dataUrl, format, width, height };
+}
+
 export type PurchaseRequestPdfHeader = {
   pr_no: string;
   request_date: string;
@@ -33,11 +58,24 @@ function toDMY(value: string | null) {
 export default function PurchaseRequestPdfButton({
   pr,
   items,
+  imageUrls = [],
 }: {
   pr: PurchaseRequestPdfHeader;
   items: PurchaseRequestPdfItem[];
+  imageUrls?: string[];
 }) {
+  const [exporting, setExporting] = useState(false);
+
   async function handleExport() {
+    setExporting(true);
+    try {
+      await buildAndSavePdf();
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function buildAndSavePdf() {
     const { jsPDF } = await import("jspdf");
     const autoTable = (await import("jspdf-autotable")).default;
     const { default: sarabunRegular } = await import("@/lib/pdf-fonts/sarabun-regular");
@@ -171,6 +209,37 @@ export default function PurchaseRequestPdfButton({
     doc.setTextColor(0);
   });
 
+  // Attached images — each on its own page, after the main PR page above,
+  // scaled to fit within the margins while preserving aspect ratio. Never
+  // touches the main page's layout. A failed image (e.g. deleted from
+  // storage, or an unsupported format) is skipped, not fatal — the rest of
+  // the export still completes. Same approach as
+  // components/MemorandumPdfButton.tsx.
+  for (let i = 0; i < imageUrls.length; i++) {
+    try {
+      const { dataUrl, format, width, height } = await loadImage(imageUrls[i]);
+      doc.addPage();
+      doc.setFont("Sarabun", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(0);
+      doc.text(`Attachment ${i + 1} / ${imageUrls.length}`, marginX, 40);
+
+      const maxW = contentWidth;
+      const maxH = pageHeight - 90;
+      const aspect = width / height;
+      let w = maxW;
+      let h = w / aspect;
+      if (h > maxH) {
+        h = maxH;
+        w = h * aspect;
+      }
+      const x = marginX + (maxW - w) / 2;
+      doc.addImage(dataUrl, format, x, 56, w, h);
+    } catch (err) {
+      console.error("Skipping attachment in PDF export:", err);
+    }
+  }
+
   doc.save(`PurchaseRequest-${pr.pr_no.replace("/", "-")}.pdf`);
   }
 
@@ -178,9 +247,10 @@ export default function PurchaseRequestPdfButton({
 return (
   <button
     onClick={handleExport}
-    className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+    disabled={exporting}
+    className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
     >
-  Export PDF
+  {exporting ? "Generating PDF…" : "Export PDF"}
   </button>
   );
 }

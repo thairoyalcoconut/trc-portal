@@ -73,6 +73,7 @@ export default async function EditPurchaseRequestPage({ params }: { params: { id
             recorded_by: pr.recorded_by,
             reviewed_by: pr.reviewed_by,
             approved_by: pr.approved_by,
+            image_paths: pr.image_paths,
           }}
           items={formItems}
         />
