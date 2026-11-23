@@ -5,7 +5,10 @@ import type { CurrentProfile } from "@/lib/profile";
 // Department-specific modules. Add more department -> page mappings here
 // as new department pages get built (e.g. Production, Warehouse & Inventory).
 const DEPARTMENT_MODULES: Record<string, { href: string; label: string }[]> = {
-  Marketing: [{ href: "/sales", label: "Sales Order" }],
+  Marketing: [
+    { href: "/sales", label: "Sales Order" },
+    { href: "/pos-booth", label: "POS-ออกบูท" },
+  ],
   Purchasing: [{ href: "/purchasing", label: "PR" }],
 };
 
