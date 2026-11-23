@@ -225,6 +225,7 @@ export async function closeShift(input: {
       countedCash: counted,
       summary,
       expenses: (expenses ?? []) as PosExpense[],
+      bills: (bills ?? []) as PosBill[],
     });
     const sent = await sendSummaryEmail(recipients, mail);
 
